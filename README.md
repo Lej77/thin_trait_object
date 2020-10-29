@@ -58,6 +58,15 @@ assert!(common);
 assert!(erased.is_equal(2));
 ```
 
+## License
+
+This project is released under either:
+
+- [MIT License](https://github.com/Lej77/cast_trait_object/blob/master/LICENSE-MIT)
+- [Apache License (Version 2.0)](https://github.com/Lej77/cast_trait_object/blob/master/LICENSE-APACHE)
+
+at your choosing.
+
 ### Contribution
 
 Unless you explicitly state otherwise, any contribution intentionally
