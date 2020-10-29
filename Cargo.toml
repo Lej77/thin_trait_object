@@ -1,0 +1,21 @@
+[package]
+name = "thin_trait_object"
+version = "0.1.0"
+authors = ["Lej77 <31554212+Lej77@users.noreply.github.com>"]
+license = "MIT OR Apache-2.0"
+edition = "2018"
+description = "Use trait objects without fat pointers."
+categories = ["no-std", "rust-patterns"]
+readme = "README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["std"]
+
+std = []
+
+[dependencies]
+
+[dev-dependencies]
+impls = "1.0.3"
