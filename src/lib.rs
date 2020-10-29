@@ -2479,15 +2479,6 @@ impl<V> StaticVTableRef<V> {
 unsafe impl<V> Send for StaticVTableRef<V> where V: Send {}
 unsafe impl<V> Sync for StaticVTableRef<V> where V: Sync {}
 
-/// Not public API.
-#[doc(hidden)]
-pub mod __private {
-    extern crate alloc;
-
-    #[doc(hidden)]
-    pub use alloc::boxed::Box;
-}
-
 #[cfg(test)]
 mod tests {
     #[test]
