@@ -1,5 +1,6 @@
 [package]
 name = "thin_trait_object"
+# Generate README.md using `cargo readme --no-license > README.md`
 version = "0.1.0"
 authors = ["Lej77 <31554212+Lej77@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
@@ -19,3 +20,6 @@ std = []
 
 [dev-dependencies]
 impls = "1.0.3"
+
+[target.'cfg(not(miri))'.dev-dependencies]
+trybuild = "1.0.35"

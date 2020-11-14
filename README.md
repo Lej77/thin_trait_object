@@ -9,8 +9,6 @@ Specifically [code from version 1.0.33](https://github.com/dtolnay/anyhow/tree/c
 Check out the [`prelude`] module for the most important items when using this
 crate.
 
-<!-- Generate README.md using `cargo readme --no-license > README.md` -->
-
 ## Examples
 
 ```rust
