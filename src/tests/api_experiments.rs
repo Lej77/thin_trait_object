@@ -265,6 +265,7 @@ fn const_auto_trait_config() {
 #[cfg(compiler_error_in_the_future)]
 #[test]
 fn where_clause_on_trait_object_methods() {
+    // This will be a compiler error in the future:
     trait SomeTrait {
         fn test(&self)
         where
@@ -285,6 +286,16 @@ fn where_clause_on_trait_object_methods() {
         {
         }
     }
+    trait GenericTrait<T> {
+        // This seems to be allowed:
+        fn test(&self)
+        where
+            T: Send;
+    }
+    impl GenericTrait<()> for () {
+        fn test(&self) {}
+    }
+    let _a: &(dyn GenericTrait<()> + Send) = &();
 
     trait SubTrait: SomeTrait + std::fmt::Debug {}
     impl<T> SubTrait for T where T: SomeTrait + std::fmt::Debug {}

@@ -24,7 +24,9 @@ fn it_works() {
 
             fn with_type_ref<'b>(&'b self) -> <Self as TestMacroParsing<'a>>::TestType;
 
-            fn many_lifetimes<'b, 'c>(&'b self, v: &'c ()) -> &'c u32;
+            fn many_lifetimes<'b, 'c>(&'b self, v: &'c ()) -> &'c u32
+            where
+                'c: 'b;
 
             fn borrowed_value<'b>(&'b self) -> &'b u32;
             fn borrowed_trait_object<'b>(&'b self) -> &'b dyn ToString;
@@ -69,6 +71,14 @@ fn it_works() {
     define_v_table!(
         trait ParseSuperLifetimes: 'static {
             fn method<'a>(&'a self) -> &'a u32;
+        }
+    );
+    define_v_table!(
+        trait WithWhereClauses<T: Send> {
+            fn with_where_clause<'a, 'b>(&'a self, v: &'b ()) -> &'a u32
+            where
+                'a: 'b,
+                T: Send;
         }
     );
     //trace_macros!(false);

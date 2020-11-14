@@ -203,9 +203,12 @@ macro_rules! __define_v_table_internal {
             ))?
             // Return type
             $(-> $return_type:ty)?
-            // Where clause (this is a compiler warning for "object safe" methods, methods without `where Self: Sized`):
+            // Where clause (type bounds on `Self` are a compiler warning for "object safe" methods, methods without `where Self: Sized`):
             $(where
-                $( $where_clause_ty:ty
+                $( $where_clause_lifetime:lifetime:
+                    $($where_clause_lifetime_lifetime_bound:lifetime $(+)?)*
+                ),* $(,)?
+                $( $where_clause_ty:path
                     $(: $where_clause_bound:path)?
                     $(: ?$where_clause_unsized_bound:path)?
                     $(: $where_clause_lifetime_bound:lifetime)?
@@ -250,8 +253,11 @@ macro_rules! __define_v_table_internal {
                     ))?
                     // Return type
                     $(-> $return_type)?
-                    // Where clause (this is a compiler warning for "object safe" methods, methods without `where Self: Sized`):
+                    // Where clause (type bounds on `Self` are a compiler warning for "object safe" methods, methods without `where Self: Sized`):
                     $(where
+                        $(
+                            $where_clause_lifetime: $($where_clause_lifetime_lifetime_bound+)*,
+                        )*
                         $( $where_clause_ty
                             $(: $where_clause_bound)?
                             $(: ?$where_clause_unsized_bound)?
@@ -287,9 +293,12 @@ macro_rules! __define_v_table_internal {
             ))?
             // Return type
             $(-> $return_type:ty)?
-            // Where clause (this is a compiler warning for "object safe" methods, methods without `where Self: Sized`):
+            // Where clause (type bounds on `Self` are a compiler warning for "object safe" methods, methods without `where Self: Sized`):
             $(where
-                $( $where_clause_ty:ty
+                $( $where_clause_lifetime:lifetime:
+                    $($where_clause_lifetime_lifetime_bound:lifetime $(+)?)*
+                ),* $(,)?
+                $( $where_clause_ty:path
                     $(: $where_clause_bound:path)?
                     $(: ?$where_clause_unsized_bound:path)?
                     $(: $where_clause_lifetime_bound:lifetime)?
@@ -334,8 +343,11 @@ macro_rules! __define_v_table_internal {
                     ))?
                     // Return type
                     $(-> $return_type)?
-                    // Where clause (this is a compiler warning for "object safe" methods, methods without `where Self: Sized`):
+                    // Where clause (type bounds on `Self` are a compiler warning for "object safe" methods, methods without `where Self: Sized`):
                     $(where
+                        $(
+                            $where_clause_lifetime: $($where_clause_lifetime_lifetime_bound+)*,
+                        )*
                         $( $where_clause_ty
                             $(: $where_clause_bound)?
                             $(: ?$where_clause_unsized_bound)?

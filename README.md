@@ -26,12 +26,12 @@ impl VTableEq for u32 {
 }
 
 // While a Box<dyn Trait> has the size of 2 usize this is only 1 usize large:
-assert_eq!(mem::size_of::<usize>(), mem::size_of::<ThinBox::<dyn VTableEq, bool>>());
+assert_eq!(mem::size_of::<usize>(), mem::size_of::<ThinBox::<'_, dyn VTableEq, bool>>());
 assert_eq!(mem::size_of::<usize>() * 2, mem::size_of::<Box<dyn VTableEq>>());
 
 // Need to specify the trait that the provided value implements (but the actual
 // type is erased/forgotten):
-let mut erased = ThinBox::<dyn VTableEq, bool>::new(2, false);
+let mut erased = ThinBox::<'_, dyn VTableEq, bool>::new(2, false);
 
 // ThinBox implements the `VTableEq` trait:
 assert!(erased.is_equal(2));
