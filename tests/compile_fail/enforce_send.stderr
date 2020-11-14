@@ -1,10 +1,14 @@
 error[E0277]: `std::rc::Rc<{integer}>` cannot be sent between threads safely
-  --> $DIR/enforce_send.rs:10:5
-   |
-10 |     ThinBox::<dyn SomeVTable + Send, _>::new(Rc::new(2), ());
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::rc::Rc<{integer}>` cannot be sent between threads safely
-   |
-   = help: the trait `std::marker::Send` is not implemented for `std::rc::Rc<{integer}>`
-   = note: required because of the requirements on the impl of `thin_trait_object::auto_traits::EnforceAutoTraits<std::rc::Rc<{integer}>>` for `thin_trait_object::auto_traits::HasSend<()>`
-   = note: required because of the requirements on the impl of `thin_trait_object::auto_traits::HasAutoTraits<thin_trait_object::auto_traits::HasSend<()>>` for `std::rc::Rc<{integer}>`
-   = note: required by `thin_trait_object::ThinBox::<V, C>::new`
+    --> $DIR/enforce_send.rs:10:5
+     |
+10   |     ThinBox::<'_, dyn SomeVTable + Send, _>::new(Rc::new(2), ());
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `std::rc::Rc<{integer}>` cannot be sent between threads safely
+     |
+    ::: $WORKSPACE/src/lib.rs
+     |
+     |         V::VTable: GetThinTraitVTable<T>,
+     |                    --------------------- required by this bound in `thin_trait_object::ThinBox::<'erased_data, V, C>::new`
+     |
+     = help: the trait `std::marker::Send` is not implemented for `std::rc::Rc<{integer}>`
+     = note: required because of the requirements on the impl of `thin_trait_object::auto_traits::EnforceAutoTraits<std::rc::Rc<{integer}>>` for `thin_trait_object::auto_traits::HasSend<()>`
+     = note: required because of the requirements on the impl of `thin_trait_object::auto_traits::HasAutoTraits<thin_trait_object::auto_traits::HasSend<()>>` for `std::rc::Rc<{integer}>`

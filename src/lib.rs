@@ -24,12 +24,12 @@
 //! }
 //!
 //! // While a Box<dyn Trait> has the size of 2 usize this is only 1 usize large:
-//! assert_eq!(mem::size_of::<usize>(), mem::size_of::<ThinBox::<dyn VTableEq, bool>>());
+//! assert_eq!(mem::size_of::<usize>(), mem::size_of::<ThinBox::<'_, dyn VTableEq, bool>>());
 //! assert_eq!(mem::size_of::<usize>() * 2, mem::size_of::<Box<dyn VTableEq>>());
 //!
 //! // Need to specify the trait that the provided value implements (but the actual
 //! // type is erased/forgotten):
-//! let mut erased = ThinBox::<dyn VTableEq, bool>::new(2, false);
+//! let mut erased = ThinBox::<'_, dyn VTableEq, bool>::new(2, false);
 //!
 //! // ThinBox implements the `VTableEq` trait:
 //! assert!(erased.is_equal(2));
@@ -223,22 +223,22 @@ macro_rules! __define_v_table_internal {
             trait_def = $trait_def,
             unparsed_items = { $($unparsed_rest)* },
             parsed_fns = { $($parsed)* {
-                is_unsafe = {  $(unsafe $(;;; $is_unsafe:ident)?)?  },
+                is_unsafe = {  $(unsafe $(;;; $is_unsafe)?)?  },
                 method_name = { $method_name },
-                lifetimes_parameters = {  $($($lifetime)*)?  },
+                lifetimes_parameters = {  $($($lifetime,)*)?  },
                 arguments = {  $($(  $arg_name: $arg_ty,  )*)?  $($(  $arg_name_adv: $arg_ty_adv,  )*)?  },
                 return_type = {  $($return_type)?  },
                 self_ident = { self },
                 self_type = {
-                    $(  $(&$($self_life)?)? $(mut $(;;; $self_is_mut_ref:ident)?)? self  )?
-                    $(  $(&$($self_life_adv:lifetime)?)? $(mut $(;;; $self_is_mut_ref_adv:ident)?)?  self  )?
+                    $(  $(&$($self_life)?)? $(mut $(;;; $self_is_mut_ref)?)? self  )?
+                    $(  $(&$($self_life_adv)?)? $(mut $(;;; $self_is_mut_ref_adv)?)?  self  )?
                 },
                 signature = {
                     // Method definition:
                     $(unsafe $(;;; $is_unsafe)?)? fn $method_name
                     // Lifetime Parameters:
                     $(<
-                        $( $lifetime $(: $lifetime_bound)? ),* $(,)?
+                        $( $lifetime $(: $lifetime_bound)? ),*
                     >)?
                     // parameters with shorthand self (&self, &mut self, self)
                     $((
@@ -307,22 +307,22 @@ macro_rules! __define_v_table_internal {
             trait_def = $trait_def,
             unparsed_items = { $($unparsed_rest)* },
             parsed_fns = { $($parsed)* {
-                is_unsafe = {  $(unsafe $(;;; $is_unsafe:ident)?)?  },
+                is_unsafe = {  $(unsafe $(;;; $is_unsafe)?)?  },
                 method_name = { $method_name },
-                lifetimes_parameters = {  $($($lifetime)*)?  },
+                lifetimes_parameters = {  $($($lifetime,)*)?  },
                 arguments = {  $($(  $arg_name: $arg_ty,  )*)?  $($(  $arg_name_adv: $arg_ty_adv,  )*)?  },
                 return_type = {  $($return_type)?  },
                 self_ident = { self },
                 self_type = {
-                    $(  $(&$($self_life)?)? $(mut $(;;; $self_is_mut_ref:ident)?)? self  )?
-                    $(  $(&$($self_life_adv:lifetime)?)? $(mut $(;;; $self_is_mut_ref_adv:ident)?)?  self  )?
+                    $(  $(&$($self_life)?)? $(mut $(;;; $self_is_mut_ref)?)? self  )?
+                    $(  $(&$($self_life_adv)?)? $(mut $(;;; $self_is_mut_ref_adv)?)?  self  )?
                 },
                 signature = {
                     // Method definition:
                     $(unsafe $(;;; $is_unsafe)?)? fn $method_name
                     // Lifetime Parameters:
                     $(<
-                        $( $lifetime $(: $lifetime_bound)? ),* $(,)?
+                        $( $lifetime $(: $lifetime_bound)? ),*
                     >)?
                     // parameters with shorthand self (&self, &mut self, self)
                     $((
@@ -518,20 +518,20 @@ macro_rules! __define_v_table_internal {
             )?
             {
                 $(
-                    $method_name: for< $( $method_lifetime_parameter ),* > fn(
+                    $method_name: for<'__this, $( $method_lifetime_parameter ),* > fn(
                         // Self type:
                         $crate::__define_v_table_internal!{@if ($(true$(;;;$method_is_ref:ident)?)?false)
                             // Self is a reference:
-                            {$(&  $($method_self_life)? )?  $(mut $(;;; $method_self_is_mut_ref)?)?  $crate::RawThin<Self, $crate::Split<__CommonData>, $crate::auto_traits::NoAutoTraits, (), ()>}
+                            {$(&  $($method_self_life)? )?  $(mut $(;;; $method_self_is_mut_ref)?)?  $crate::RawThin<'__this, Self, $crate::Split<__CommonData>, $crate::auto_traits::NoAutoTraits, ()>}
                             else
                             // Self is taken by value:
-                            {$crate::RawThinBox<Self, $crate::Taken<__CommonData>, $crate::auto_traits::NoAutoTraits, (), ()>}
+                            {$crate::RawThinBox<'__this, Self, $crate::Taken<__CommonData>, $crate::auto_traits::NoAutoTraits, ()>}
                         },
                         // Args:
                         $($method_arg_ty),*
                     ) $(-> $return_type)?,
                 )*
-                __drop: fn($crate::RawThinBox<Self,  $crate::Taken<__CommonData>, $crate::auto_traits::NoAutoTraits, (), ()>),
+                __drop: for<'__this> fn($crate::RawThinBox<'__this, Self,  $crate::Taken<__CommonData>, $crate::auto_traits::NoAutoTraits, ()>),
 
                 // Generic or lifetimes might not be used by methods. This is allowed in traits but not in structs.
                 // This marker ensures that the type and lifetime parameters are used without affecting the auto
@@ -551,7 +551,7 @@ macro_rules! __define_v_table_internal {
             struct __Private;
 
             // Implement the trait for __VTable so that associated types can be resolved in method argument types:
-            #[allow(unused_variables, unused_mut)]
+            #[allow(unused_variables, unused_mut, clippy::needless_arbitrary_self_type)]
             $(unsafe $($is_unsafe_trait)?)? impl
             <
                 $(
@@ -687,7 +687,7 @@ macro_rules! __define_v_table_internal {
             )?
             {
                 // This warning can happen if a method is unsafe (then any unsafe uses inside it becomes unnecessary).
-                #[allow(unused_unsafe)]
+                #[allow(unused_unsafe, clippy::needless_arbitrary_self_type)]
                 fn get_vtable() -> $crate::VTable<Self, __T> {
                     let get_vtable = || -> &_ {
                         let vtable: &__VTable<$(  $($lifetime,)* $($generics,)*  )?  $($associated_type_name,)*  __CommonData> = $crate::__define_v_table_internal! {
@@ -761,7 +761,7 @@ macro_rules! __define_v_table_internal {
                 ),* $(,)?
             )?
             {
-                unsafe fn drop_erased_box(&self, erased_box: $crate::RawThinBox<Self, $crate::Taken<__CommonData>, $crate::auto_traits::NoAutoTraits, (), ()>) {
+                unsafe fn drop_erased_box(&self, erased_box: $crate::RawThinBox<'_, Self, $crate::Taken<__CommonData>, $crate::auto_traits::NoAutoTraits, ()>) {
                     // Forward the call to the vtable drop method:
                     (self.__drop)(erased_box)
                 }
@@ -769,7 +769,7 @@ macro_rules! __define_v_table_internal {
 
             // impl the user's trait for `ThinWithoutCommon` so that the trait methods can be called
             // for references to the thin trait object.
-            #[allow(unused_mut)]
+            #[allow(unused_mut, clippy::needless_arbitrary_self_type)]
             // This warning can happen if a method is unsafe (then any unsafe uses becomes unnecessary).
             #[allow(unused_unsafe)]
             $(unsafe $($is_unsafe_trait)?)? impl
@@ -788,7 +788,7 @@ macro_rules! __define_v_table_internal {
             >
             $trait_name<$(  $($lifetime,)* $($generics,)*  )?>
             for
-            $crate::ThinWithoutCommon<__ThinTrait, __CommonData>
+            $crate::ThinWithoutCommon<'_, __ThinTrait, __CommonData>
             where
                 // Ensure all required auto traits are implemented (might for example constrain __CommonData):
                 Self: $($($super_lifetime_bound +)* $($super_bound +)*)?,
@@ -847,7 +847,13 @@ macro_rules! __define_v_table_internal {
                                     }}
                                 };
 
-                                (__vtable.$method_name)(__erased_thin, $($method_arg_name),* )
+                                let result = (__vtable.$method_name)(__erased_thin, $($method_arg_name),* );
+
+                                $crate::__define_v_table_internal!{@transmute_return_type
+                                    self_lifetime = { $($($method_self_life)?)? },
+                                    return_type = { $($return_type)? },
+                                    value_to_transmute = {result},
+                                }
                             }
                             else
                             // Self is taken by value:
@@ -859,7 +865,7 @@ macro_rules! __define_v_table_internal {
 
             // impl the user's trait for `ThinBox` so that the trait methods can be called
             // for methods that consumes self.
-            #[allow(unused_mut)]
+            #[allow(unused_mut, clippy::needless_arbitrary_self_type)]
             // This warning can happen if a method is unsafe (then any unsafe uses becomes unnecessary).
             #[allow(unused_unsafe)]
             $(unsafe $($is_unsafe_trait)?)? impl
@@ -878,7 +884,7 @@ macro_rules! __define_v_table_internal {
             >
             $trait_name<$(  $($lifetime,)* $($generics,)*  )?>
             for
-            $crate::ThinBox<__ThinTrait, __CommonData>
+            $crate::ThinBox<'_, __ThinTrait, __CommonData>
             where
                 // Ensure all required auto traits are implemented (might for example constrain __CommonData):
                 Self: $($($super_lifetime_bound +)* $($super_bound +)*)?,
@@ -950,14 +956,20 @@ macro_rules! __define_v_table_internal {
                                 }
                             }
                         };
-                        (__vtable.$method_name)(__erased, $($method_arg_name),* )
+                        let result = (__vtable.$method_name)(__erased, $($method_arg_name),* );
+
+                        $crate::__define_v_table_internal!{@transmute_return_type
+                            self_lifetime = { $($($method_self_life)?)? },
+                            return_type = { $($return_type)? },
+                            value_to_transmute = {result},
+                        }
                     }
                 )*
             }
 
             // impl the user's trait for `ThinBoxWithoutCommon` so that the trait methods can be called
             // for methods that consumes self.
-            #[allow(unused_mut)]
+            #[allow(unused_mut, clippy::needless_arbitrary_self_type)]
             // This warning can happen if a method is unsafe (then any unsafe uses becomes unnecessary).
             #[allow(unused_unsafe)]
             $(unsafe $($is_unsafe_trait)?)? impl
@@ -976,7 +988,7 @@ macro_rules! __define_v_table_internal {
             >
             $trait_name<$(  $($lifetime,)* $($generics,)*  )?>
             for
-            $crate::ThinBoxWithoutCommon<__ThinTrait, __CommonData>
+            $crate::ThinBoxWithoutCommon<'_, __ThinTrait, __CommonData>
             where
                 // Ensure all required auto traits are implemented (might for example constrain __CommonData):
                 Self: $($($super_lifetime_bound +)* $($super_bound +)*)?,
@@ -1047,7 +1059,13 @@ macro_rules! __define_v_table_internal {
                                 }
                             }
                         };
-                        (__vtable.$method_name)(__erased, $($method_arg_name),* )
+                        let result = (__vtable.$method_name)(__erased, $($method_arg_name),* );
+
+                        $crate::__define_v_table_internal!{@transmute_return_type
+                            self_lifetime = { $($($method_self_life)?)? },
+                            return_type = { $($return_type)? },
+                            value_to_transmute = {result},
+                        }
                     }
                 )*
             }
@@ -1106,7 +1124,7 @@ macro_rules! __define_v_table_internal {
                 // Where clause (`impl Trait for Type [insert where clause here] {...}`):
                 where_clause = {
                     where
-                        __VTable<$(  $($lifetime,)* $($generics,)*  )?  $($associated_type_name,)*  __CommonData>: $($($lifetime +)*)? ::core::marker::Unpin,
+                        __VTable<$(  $($lifetime,)* $($generics,)*  )?  $($associated_type_name,)*  __CommonData>: $($($lifetime +)*)? '__a + ::core::marker::Unpin,
                         $($($lifetime: '__a,)*)?
                     $(
                         $( $where_clause_ty:ty
@@ -1119,7 +1137,6 @@ macro_rules! __define_v_table_internal {
                 // The part of the `ThinTrait` implementation that doesn't depend on auto traits:
                 common_impl = {
                     type VTable = __VTable<$(  $($lifetime,)* $($generics,)*  )?  $($associated_type_name,)*  __CommonData>;
-                    type Lifetime = $crate::LifetimeAsType<'__a>;
                 },
             }
         };
@@ -1156,7 +1173,7 @@ macro_rules! __define_v_table_internal {
             vtable_methods = { $($vtable_methods)* {
                 $method_name: |__this, $($method_arg_name),*| {
                     $(unsafe $(;;; $method_is_unsafe:ident)?)?  {
-                        <$erased_ty as $trait_name<  $($trait_lifetime,)*  $($trait_generics,)*  >>::$method_name(
+                        let result = <$erased_ty as $trait_name<  $($trait_lifetime,)*  $($trait_generics,)*  >>::$method_name(
                             {
                                 // Safety: getting access to a vtable requires calling an unsafe
                                 // method on a `ThinWithoutCommon` type. This ensures that the
@@ -1168,12 +1185,14 @@ macro_rules! __define_v_table_internal {
                                         $crate::__define_v_table_internal!{@if ($(true$(;;;$method_self_is_mut_ref)?)?false)
                                             // Self is a mutable reference:
                                             {{
+                                                let __this = $crate::RawThin::without_lifetime_marker_mut(__this);
                                                 let unerased = unsafe { $crate::RawThin::as_unerase_mut::<$erased_ty>(__this) };
                                                 $crate::RawThin::as_object_mut(unerased)
                                             }}
                                             else
                                             // Self is an immutable reference:
                                             {{
+                                                let __this = $crate::RawThin::without_lifetime_marker(__this);
                                                 let unerased = unsafe { $crate::RawThin::as_unerase::<$erased_ty>(__this) };
                                                 $crate::RawThin::as_object(unerased)
                                             }}
@@ -1187,7 +1206,12 @@ macro_rules! __define_v_table_internal {
                                 }
                             }
                             $(,$method_arg_name)*
-                        )
+                        );
+                        $crate::__define_v_table_internal!{@transmute_return_type
+                            self_lifetime = { $($($method_self_life)?)? },
+                            return_type = { $($return_type)? },
+                            value_to_transmute = {result},
+                        }
                     }
                 }
             }},
@@ -1274,6 +1298,80 @@ macro_rules! __define_v_table_internal {
         where_clause = { $($where_clause:tt)* },
         common_impl = { $($common_impl:tt)* },
     ) => {};
+    ////////////////////////////////////////////////////////////////////////////////
+    // Transmute a return type to disconnect its lifetime requirement from generic
+    // types that shouldn't affect it:
+    ////////////////////////////////////////////////////////////////////////////////
+    (@transmute_return_type
+        self_lifetime = { $($self_lifetime:lifetime)? },
+        return_type = { $($return_type:ty)? },
+        value_to_transmute = {$result:ident},
+    ) => {
+        $crate::__define_v_table_internal!{@if ($(true;;;$self_lifetime)?false)
+            // Self type has explicit lifetime
+            {
+                $crate::__define_v_table_internal!{@if ($(true;;;$return_type)?false)
+                    // Method has a return type
+                    {
+                        // If the lifetime `'a` in `&'a $(mut)? self` is tied to the return
+                        // type then we need to transmute that lifetime to a new lifetime
+                        // that is longer since the compiler will complain that `__T` might
+                        // not live long enough for the lifetime to be valid. We know it must
+                        // be though since the self type (`Thin`) can't live longer than `__T`.
+
+                        struct __MaybeTransmuteLifetime<T>(T);
+                        impl __MaybeTransmuteLifetime<[(); 0]> {
+                            unsafe fn handle<T>(v: T) -> T { v }
+                        }
+                        impl __MaybeTransmuteLifetime<[(); 1]> {
+                            unsafe fn handle<T, U>(v: T) -> U {
+                                let v = ::core::mem::ManuallyDrop::<T>::new(v);
+                                ::core::mem::transmute_copy::<T, U>(&v)
+                            }
+                        }
+                        // Only transmute if the return type is connected to the self lifetime
+                        // We could always transmute but this should hopefully be catch limit
+                        // the unsafety.
+                        unsafe { __MaybeTransmuteLifetime::<[(); {
+                            let return_type_text = ::core::stringify!($($return_type)?).as_bytes();
+                            let self_lifetime = ::core::stringify!($($self_lifetime)?).as_bytes();
+
+                            let mut scan_index = 0;
+                            let mut compare_index = 0;
+                            loop {
+                                // Uncomment the next line and use the lifetime `'z` as `&'z self` to
+                                // test what would happen if transmute wasn't used to fix issues.
+                                // if self_lifetime[1] == b"z"[0] { break 0; }
+
+                                if compare_index >= self_lifetime.len() {
+                                    // Found self lifetime
+                                    break 1;
+                                }
+                                if compare_index + scan_index >= return_type_text.len() {
+                                    // Reached end of return type without finding lifetime
+                                    break 0;
+                                }
+                                if return_type_text[compare_index + scan_index] != self_lifetime[compare_index] {
+                                    // Scan next position in return type
+                                    scan_index += 1;
+                                    compare_index = 0;
+                                } else {
+                                    // Continue comparing this pos in return type
+                                    compare_index += 1;
+                                }
+                            }
+                        }]>::handle($result) }
+                    }
+                    else
+                    // Method returns `()` so self lifetime can't be connected to it:
+                    {$result}
+                }
+            }
+            else
+            // Self type is not tied to a lifetime.
+            {$result}
+        }
+    };
     ////////////////////////////////////////////////////////////////////////////////
     // Utilities:
     ////////////////////////////////////////////////////////////////////////////////
@@ -1481,14 +1579,7 @@ pub trait ThinTrait<C> {
     type AutoTraitConfig: auto_traits::AutoTraitConfig<
         <Self::VTable as auto_traits::VTableEnforcedAutoTraits>::UncheckedAutoTraitMarker,
     >;
-    /// Determines the minimum lifetime of the type erased data. Must be the
-    /// [`LifetimeAsType`] struct.
-    type Lifetime;
 }
-
-/// Store a lifetime as a type.
-#[derive(Debug)]
-pub struct LifetimeAsType<'a>(PhantomData<&'a ()>);
 
 /// The auto traits marker type for a `ThinTrait` implementor `V` for a certain
 /// "common" data type `C`.
@@ -1508,7 +1599,7 @@ pub trait VTableDrop<C>: Sized {
     /// that the vtable manages.
     unsafe fn drop_erased_box(
         &self,
-        erased_box: RawThinBox<Self, Taken<C>, auto_traits::NoAutoTraits, (), ()>,
+        erased_box: RawThinBox<'_, Self, Taken<C>, auto_traits::NoAutoTraits, ()>,
     );
 }
 
@@ -1652,20 +1743,20 @@ pub mod auto_traits {
 /// The same as [`ThinBox`] except the common data has been moved out and is no
 /// longer available.
 #[repr(transparent)]
-pub struct ThinBoxWithoutCommon<V, C>
+pub struct ThinBoxWithoutCommon<'erased_data, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
-    inner: ManuallyDrop<Box<ThinWithoutCommon<V, C>>>,
+    inner: ManuallyDrop<Box<ThinWithoutCommon<'erased_data, V, C>>>,
 }
-impl<'a, V> ThinBoxWithoutCommon<V, ()>
+impl<'erased_data, V> ThinBoxWithoutCommon<'erased_data, V, ()>
 where
-    V: ThinTrait<(), Lifetime = LifetimeAsType<'a>> + ?Sized,
+    V: ThinTrait<()> + ?Sized,
 {
     /// Create a new [`ThinBoxWithoutCommon`] that stores some data in a heap allocation.
     pub fn new<T>(x: T) -> Self
     where
-        T: auto_traits::HasAutoTraits<V::AutoTraitConfig> + 'a,
+        T: auto_traits::HasAutoTraits<V::AutoTraitConfig> + 'erased_data,
         V::VTable: GetThinTraitVTable<T>,
     {
         Self::from_raw(
@@ -1676,31 +1767,13 @@ where
         )
     }
 }
-impl<'a, V, C> ThinBoxWithoutCommon<V, C>
-where
-    V: ThinTrait<C, Lifetime = LifetimeAsType<'a>> + ?Sized,
-{
-    /// Shorten the lifetime that is enforced by the thin trait.
-    pub fn shorten_lifetime<'b, S>(this: Self) -> ThinBoxWithoutCommon<S, C>
-    where
-        S: ThinTrait<
-                C,
-                VTable = V::VTable,
-                Lifetime = LifetimeAsType<'b>,
-                AutoTraitConfig = V::AutoTraitConfig,
-            > + ?Sized,
-        'a: 'b,
-    {
-        ThinBoxWithoutCommon::from_raw(Self::into_raw(this))
-    }
-}
-impl<V, C> ThinBoxWithoutCommon<V, C>
+impl<'erased_data, V, C> ThinBoxWithoutCommon<'erased_data, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
     /// Put some common data into the heap allocation that stores the type erased
     /// object.
-    pub fn put_common(this: Self, common: C) -> ThinBox<V, C> {
+    pub fn put_common(this: Self, common: C) -> ThinBox<'erased_data, V, C> {
         ThinBox::from_raw(Self::into_raw(this).put_common_data(common))
     }
 
@@ -1709,10 +1782,10 @@ where
     pub fn into_raw(
         this: Self,
     ) -> RawThinBox<
+        'erased_data,
         <V as ThinTrait<C>>::VTable,
         Taken<C>,
         ThinTraitAutoTraitsMarker<V, C>,
-        V::Lifetime,
         (),
     > {
         let mut this = ManuallyDrop::new(this);
@@ -1730,29 +1803,30 @@ where
     pub unsafe fn take_raw(
         this: &mut Self,
     ) -> RawThinBox<
+        'erased_data,
         <V as ThinTrait<C>>::VTable,
         Taken<C>,
         ThinTraitAutoTraitsMarker<V, C>,
-        V::Lifetime,
         (),
     > {
         // Safety: the read value won't ever be used from a safe function `RawThinBox`
         // doesn't make any guarantees about the state of its content, so the user
         // must assume that the wrapped value could already be dropped and can't do
         // anything to it safely.
-        let inner: ManuallyDrop<Box<ThinWithoutCommon<V, C>>> = ptr::read(&this.inner);
+        let inner: ManuallyDrop<Box<ThinWithoutCommon<'erased_data, V, C>>> =
+            ptr::read(&this.inner);
 
         // Safety: `ThinWithoutCommon` is a `repr(transparent)` struct around `RawThin` and we ensured
         // the types inside `ThinWithoutCommon` lines up with the ones inside RawThin.
         let inner = mem::transmute::<
-            ManuallyDrop<Box<ThinWithoutCommon<V, C>>>,
+            ManuallyDrop<Box<ThinWithoutCommon<'erased_data, V, C>>>,
             ManuallyDrop<
                 Box<
                     RawThin<
+                        'erased_data,
                         <V as ThinTrait<C>>::VTable,
                         Taken<C>,
                         ThinTraitAutoTraitsMarker<V, C>,
-                        V::Lifetime,
                         (),
                     >,
                 >,
@@ -1764,10 +1838,10 @@ where
     /// a more convent, more higher level API.
     pub fn from_raw(
         raw: RawThinBox<
+            'erased_data,
             <V as ThinTrait<C>>::VTable,
             Taken<C>,
             ThinTraitAutoTraitsMarker<V, C>,
-            V::Lifetime,
             (),
         >,
     ) -> Self {
@@ -1779,31 +1853,31 @@ where
                 ManuallyDrop<
                     Box<
                         RawThin<
+                            'erased_data,
                             <V as ThinTrait<C>>::VTable,
                             Taken<C>,
                             ThinTraitAutoTraitsMarker<V, C>,
-                            V::Lifetime,
                             (),
                         >,
                     >,
                 >,
-                ManuallyDrop<Box<ThinWithoutCommon<V, C>>>,
+                ManuallyDrop<Box<ThinWithoutCommon<'erased_data, V, C>>>,
             >(inner)
         };
         Self { inner }
     }
 }
-impl<V, C> Deref for ThinBoxWithoutCommon<V, C>
+impl<'erased_data, V, C> Deref for ThinBoxWithoutCommon<'erased_data, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
-    type Target = ThinWithoutCommon<V, C>;
+    type Target = ThinWithoutCommon<'erased_data, V, C>;
 
     fn deref(&self) -> &Self::Target {
         &**self.inner
     }
 }
-impl<V, C> DerefMut for ThinBoxWithoutCommon<V, C>
+impl<'erased_data, V, C> DerefMut for ThinBoxWithoutCommon<'erased_data, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
@@ -1811,7 +1885,7 @@ where
         &mut **self.inner
     }
 }
-impl<V, C> fmt::Debug for ThinBoxWithoutCommon<V, C>
+impl<V, C> fmt::Debug for ThinBoxWithoutCommon<'_, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
@@ -1821,7 +1895,7 @@ where
             .finish()
     }
 }
-impl<V, C> Drop for ThinBoxWithoutCommon<V, C>
+impl<V, C> Drop for ThinBoxWithoutCommon<'_, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
@@ -1833,20 +1907,20 @@ where
 
 /// A type erased object stored on the heap without using a fat pointer.
 #[repr(transparent)]
-pub struct ThinBox<V, C>
+pub struct ThinBox<'erased_data, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
-    inner: ManuallyDrop<Box<Thin<V, C>>>,
+    inner: ManuallyDrop<Box<Thin<'erased_data, V, C>>>,
 }
-impl<'a, V, C> ThinBox<V, C>
+impl<'erased_data, V, C> ThinBox<'erased_data, V, C>
 where
-    V: ThinTrait<C, Lifetime = LifetimeAsType<'a>> + ?Sized,
+    V: ThinTrait<C> + ?Sized,
 {
     /// Create a new [`ThinBox`] that stores some data in a heap allocation.
     pub fn new<T>(x: T, common: C) -> Self
     where
-        T: auto_traits::HasAutoTraits<V::AutoTraitConfig> + 'a,
+        T: auto_traits::HasAutoTraits<V::AutoTraitConfig> + 'erased_data,
         V::VTable: GetThinTraitVTable<T>,
     {
         Self::from_raw(
@@ -1855,28 +1929,14 @@ where
                 .erase(),
         )
     }
-
-    /// Shorten the lifetime that is enforced by the thin trait.
-    pub fn shorten_lifetime<'b, S>(this: Self) -> ThinBox<S, C>
-    where
-        S: ThinTrait<
-                C,
-                VTable = V::VTable,
-                Lifetime = LifetimeAsType<'b>,
-                AutoTraitConfig = V::AutoTraitConfig,
-            > + ?Sized,
-        'a: 'b,
-    {
-        ThinBox::from_raw(Self::into_raw(this))
-    }
 }
-impl<V, C> ThinBox<V, C>
+impl<'erased_data, V, C> ThinBox<'erased_data, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
     /// Take the common data that is stored for this object out of the heap
     /// allocation.
-    pub fn take_common(this: Self) -> (ThinBoxWithoutCommon<V, C>, C)
+    pub fn take_common(this: Self) -> (ThinBoxWithoutCommon<'erased_data, V, C>, C)
     where
         V: ThinTrait<Taken<C>>,
     {
@@ -1889,7 +1949,7 @@ where
     /// more powerful, API.
     pub fn into_raw(
         this: Self,
-    ) -> RawThinBox<<V as ThinTrait<C>>::VTable, C, ThinTraitAutoTraitsMarker<V, C>, V::Lifetime, ()>
+    ) -> RawThinBox<'erased_data, <V as ThinTrait<C>>::VTable, C, ThinTraitAutoTraitsMarker<V, C>, ()>
     {
         let mut this = ManuallyDrop::new(this);
         // Safety: the `ManuallyDrop` wrapper ensures we never use `this` again.
@@ -1904,25 +1964,25 @@ where
     /// `Self` is not dropped.
     pub unsafe fn take_raw(
         this: &mut Self,
-    ) -> RawThinBox<<V as ThinTrait<C>>::VTable, C, ThinTraitAutoTraitsMarker<V, C>, V::Lifetime, ()>
+    ) -> RawThinBox<'erased_data, <V as ThinTrait<C>>::VTable, C, ThinTraitAutoTraitsMarker<V, C>, ()>
     {
         // Safety: the read value won't ever be used from a safe function `RawThinBox`
         // doesn't make any guarantees about the state of its content, so the user
         // must assume that the wrapped value could already be dropped and can't do
         // anything to it safely.
-        let inner: ManuallyDrop<Box<Thin<V, C>>> = ptr::read(&this.inner);
+        let inner: ManuallyDrop<Box<Thin<'erased_data, V, C>>> = ptr::read(&this.inner);
 
         // Safety: `Thin` is a `repr(transparent)` struct around `RawThin` and we ensured
         // the types inside `Thin` lines up with the ones inside RawThin.
         let inner = mem::transmute::<
-            ManuallyDrop<Box<Thin<V, C>>>,
+            ManuallyDrop<Box<Thin<'erased_data, V, C>>>,
             ManuallyDrop<
                 Box<
                     RawThin<
+                        'erased_data,
                         <V as ThinTrait<C>>::VTable,
                         C,
                         ThinTraitAutoTraitsMarker<V, C>,
-                        V::Lifetime,
                         (),
                     >,
                 >,
@@ -1934,10 +1994,10 @@ where
     /// more higher level API.
     pub fn from_raw(
         raw: RawThinBox<
+            'erased_data,
             <V as ThinTrait<C>>::VTable,
             C,
             ThinTraitAutoTraitsMarker<V, C>,
-            V::Lifetime,
             (),
         >,
     ) -> Self {
@@ -1949,31 +2009,31 @@ where
                 ManuallyDrop<
                     Box<
                         RawThin<
+                            'erased_data,
                             <V as ThinTrait<C>>::VTable,
                             C,
                             ThinTraitAutoTraitsMarker<V, C>,
-                            V::Lifetime,
                             (),
                         >,
                     >,
                 >,
-                ManuallyDrop<Box<Thin<V, C>>>,
+                ManuallyDrop<Box<Thin<'erased_data, V, C>>>,
             >(inner)
         };
         Self { inner }
     }
 }
-impl<V, C> Deref for ThinBox<V, C>
+impl<'erased_data, V, C> Deref for ThinBox<'erased_data, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
-    type Target = Thin<V, C>;
+    type Target = Thin<'erased_data, V, C>;
 
     fn deref(&self) -> &Self::Target {
         &**self.inner
     }
 }
-impl<V, C> DerefMut for ThinBox<V, C>
+impl<'erased_data, V, C> DerefMut for ThinBox<'erased_data, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
@@ -1981,7 +2041,7 @@ where
         &mut **self.inner
     }
 }
-impl<V, C> fmt::Debug for ThinBox<V, C>
+impl<V, C> fmt::Debug for ThinBox<'_, V, C>
 where
     V: ThinTrait<C> + ?Sized,
     C: fmt::Debug,
@@ -1992,7 +2052,7 @@ where
             .finish()
     }
 }
-impl<V, C> Drop for ThinBox<V, C>
+impl<V, C> Drop for ThinBox<'_, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
@@ -2007,18 +2067,18 @@ where
 /// A lower level API for [`ThinBox`]. Note that if this is dropped then the
 /// underlying memory won't be freed.
 #[repr(transparent)]
-pub struct RawThinBox<V, C, M, L, D>
+pub struct RawThinBox<'erased_data, V, C, M, D>
 where
     M: ?Sized,
 {
-    inner: ManuallyDrop<Box<RawThin<V, C, M, L, D>>>,
+    inner: ManuallyDrop<Box<RawThin<'erased_data, V, C, M, D>>>,
 }
-impl<'a, V, C, D>
-    RawThinBox<V, C, auto_traits::AutoTraitConfigMarkerType<V, ()>, LifetimeAsType<'a>, Unerased<D>>
+impl<'erased_data, V, C, D>
+    RawThinBox<'erased_data, V, C, auto_traits::AutoTraitConfigMarkerType<V, ()>, Unerased<D>>
 where
     V: auto_traits::VTableEnforcedAutoTraits,
     V: GetThinTraitVTable<D>,
-    D: 'a,
+    D: 'erased_data,
 {
     /// Create a new [`RawThinBox`] that stores some data in a heap allocation.
     ///
@@ -2038,7 +2098,7 @@ where
         }
     }
 }
-impl<V, C, M, L, D> fmt::Debug for RawThinBox<V, C, M, L, D>
+impl<V, C, M, D> fmt::Debug for RawThinBox<'_, V, C, M, D>
 where
     M: ?Sized,
 {
@@ -2046,12 +2106,12 @@ where
         f.debug_struct(get_type_name!(RawThinBox)).finish()
     }
 }
-impl<V, C, M, L, D> RawThinBox<V, C, M, L, D>
+impl<'erased_data, V, C, M, D> RawThinBox<'erased_data, V, C, M, D>
 where
     M: ?Sized,
 {
     /// Erase the type of the stored object.
-    pub fn erase(self) -> RawThinBox<V, C, M, L, ()> {
+    pub fn erase(self) -> RawThinBox<'erased_data, V, C, M, ()> {
         // Static assertions about the `()` type for clarity:
         const _: [(); 0] = [(); mem::size_of::<()>()];
         const _: [(); 1] = [(); mem::align_of::<()>()];
@@ -2066,15 +2126,17 @@ where
     ///
     /// The returned type can be kept around longer than the erased data will
     /// be alive and allow for use-after-free bugs (via dangling pointers).
-    pub unsafe fn forget_lifetime(self) -> RawThinBox<V, C, M, (), D> {
+    pub unsafe fn forget_lifetime(self) -> RawThinBox<'static, V, C, M, D> {
         // Safety:
-        // The marker type is stored inside a `PhantomData` type so it never
-        // affects the layout of the `RawThin` type.
+        // we are only transmuting a lifetime so the layout of the type will be
+        // the same.
         mem::transmute(self)
     }
     /// Weaken the auto traits marker type to the weakest it can be. The returned
     /// type won't implement any auto traits even if it would be safe to do so.
-    pub fn weaken_auto_traits_marker(self) -> RawThinBox<V, C, auto_traits::NoAutoTraits, L, D> {
+    pub fn weaken_auto_traits_marker(
+        self,
+    ) -> RawThinBox<'erased_data, V, C, auto_traits::NoAutoTraits, D> {
         // Safety:
         // The marker type is stored inside a `PhantomData` type so it never
         // affects the layout of the `RawThin` type.
@@ -2087,9 +2149,10 @@ where
         unsafe { mem::transmute(self) }
     }
     /// Drop the common data in place.
-    pub fn free_common_data(self) -> RawThinBox<V, Taken<C>, M, L, D> {
+    pub fn free_common_data(self) -> RawThinBox<'erased_data, V, Taken<C>, M, D> {
         // Safety: `Taken<C>` is a `repr(transparent)` wrapper around `C`
-        let mut taken: RawThinBox<V, Taken<C>, M, L, D> = unsafe { mem::transmute(self) };
+        let mut taken: RawThinBox<'erased_data, V, Taken<C>, M, D> =
+            unsafe { mem::transmute(self) };
         let wrapper: &mut Taken<_> = &mut taken.inner.common;
         // Safety: we just owned `C` so it is safe to drop it, `Taken` will ensure
         // we never touch it again. If `C` is already a `Taken` struct then it doesn't
@@ -2098,9 +2161,10 @@ where
         taken
     }
     /// Take the common data from the allocation.
-    pub fn take_common_data(self) -> (RawThinBox<V, Taken<C>, M, L, D>, C) {
+    pub fn take_common_data(self) -> (RawThinBox<'erased_data, V, Taken<C>, M, D>, C) {
         // Safety: `Taken<C>` is a `repr(transparent)` wrapper around `C`
-        let mut taken: RawThinBox<V, Taken<C>, M, L, D> = unsafe { mem::transmute(self) };
+        let mut taken: RawThinBox<'erased_data, V, Taken<C>, M, D> =
+            unsafe { mem::transmute(self) };
         let wrapper: &mut Taken<_> = &mut taken.inner.common;
         // Safety: we just owned `C` so it is safe to take it, `Taken` will ensure
         // we never touch it again.
@@ -2109,12 +2173,12 @@ where
     }
 }
 /// Methods that are only available after the common data has been taken or freed.
-impl<V, C, M, L, D> RawThinBox<V, Taken<C>, M, L, D>
+impl<'erased_data, V, C, M, D> RawThinBox<'erased_data, V, Taken<C>, M, D>
 where
     M: ?Sized,
 {
     /// Put some common data into the allocation.
-    pub fn put_common_data(mut self, common: C) -> RawThinBox<V, C, M, L, D> {
+    pub fn put_common_data(mut self, common: C) -> RawThinBox<'erased_data, V, C, M, D> {
         // Safety: we write some valid common data to the allocation and then
         // we remove the `repr(transparent)` wrapper `Taken` to indicate that
         // the common data is in a state where it can be used.
@@ -2145,9 +2209,6 @@ where
                     // and shouldn't affect the type's layout. (We don't want to generate one vtable per
                     // auto traits marker type.)
                     .weaken_auto_traits_marker()
-                    // Forget the lifetime, the object must be alive now anyway and
-                    // we are freeing it now.
-                    .forget_lifetime()
                     // The object type is probably already erased, but this call
                     // allows this method to be called even when it isn't.
                     .erase(),
@@ -2155,7 +2216,7 @@ where
         };
     }
 }
-impl<V, C, M, L> RawThinBox<V, C, M, L, ()>
+impl<'erased_data, V, C, M> RawThinBox<'erased_data, V, C, M, ()>
 where
     M: ?Sized,
 {
@@ -2165,12 +2226,12 @@ where
     ///
     /// The type specified via the `D2` type parameter must be the actual type of
     /// the type erased object that is stored inside this allocation.
-    pub unsafe fn unerase<D2>(self) -> RawThinBox<V, C, M, L, Unerased<D2>> {
+    pub unsafe fn unerase<D2>(self) -> RawThinBox<'erased_data, V, C, M, Unerased<D2>> {
         mem::transmute(self)
     }
 }
 /// These methods require that the object's type is known.
-impl<V, C, M, L, D> RawThinBox<V, Taken<C>, M, L, Unerased<D>>
+impl<'erased_data, V, C, M, D> RawThinBox<'erased_data, V, Taken<C>, M, Unerased<D>>
 where
     M: ?Sized,
 {
@@ -2179,8 +2240,8 @@ where
         // Safety: `Taken` is `repr(transparent)`
         let mut this = unsafe {
             mem::transmute::<
-                RawThinBox<V, Taken<C>, M, L, Unerased<D>>,
-                RawThinBox<V, Taken<C>, M, L, Unerased<Taken<D>>>,
+                RawThinBox<'erased_data, V, Taken<C>, M, Unerased<D>>,
+                RawThinBox<'erased_data, V, Taken<C>, M, Unerased<Taken<D>>>,
             >(self)
         };
         // Safety: the `Taken` wrapper ensures that the object won't be touched again,
@@ -2191,7 +2252,7 @@ where
     }
 }
 /// These methods require that the object's type is known.
-impl<V, C, M, L, D> RawThinBox<V, C, M, L, Unerased<D>>
+impl<'erased_data, V, C, M, D> RawThinBox<'erased_data, V, C, M, Unerased<D>>
 where
     M: ?Sized,
 {
@@ -2199,7 +2260,7 @@ where
     /// implemented.
     pub fn with_auto_trait_config<A>(
         self,
-    ) -> RawThinBox<V, C, auto_traits::AutoTraitConfigMarkerType<V, A>, L, Unerased<D>>
+    ) -> RawThinBox<'erased_data, V, C, auto_traits::AutoTraitConfigMarkerType<V, A>, Unerased<D>>
     where
         // Allows us to get a type that implements some default auto traits that
         // are required by the vtable (supertraits of the vtable trait):
@@ -2277,7 +2338,7 @@ pub struct OwnedThin<V, C, T>
 where
     V: ThinTrait<C> + ?Sized,
 {
-    inner: RawThin<<V as ThinTrait<C>>::VTable, C, ThinTraitAutoTraitsMarker<V, C>, V::Lifetime, T>,
+    inner: RawThin<'static, <V as ThinTrait<C>>::VTable, C, ThinTraitAutoTraitsMarker<V, C>, T>,
 }
 impl<V, C, T> OwnedThin<V, C, T>
 where
@@ -2309,12 +2370,12 @@ impl<V, C, T> Deref for OwnedThin<V, C, T>
 where
     V: ThinTrait<C> + ?Sized,
 {
-    type Target = Thin<V, C>;
+    type Target = Thin<'static, V, C>;
 
     fn deref(&self) -> &Self::Target {
         // Safety: `Thin` is a transparent wrapper around `Inner` where the type that
         // is stored is erased.
-        let thin = &self.inner as *const _ as *const Thin<V, C>;
+        let thin = &self.inner as *const _ as *const Thin<'static, V, C>;
         unsafe { &*thin }
     }
 }
@@ -2325,7 +2386,7 @@ where
     fn deref_mut(&mut self) -> &mut Self::Target {
         // Safety: `Thin` is a transparent wrapper around `Inner` where the type that
         // is stored is erased.
-        let thin = &mut self.inner as *mut _ as *mut Thin<V, C>;
+        let thin = &mut self.inner as *mut _ as *mut Thin<'static, V, C>;
         unsafe { &mut *thin }
     }
 }
@@ -2345,24 +2406,26 @@ where
 
 /// A value whose type has been erased. This can only be used through a reference.
 #[repr(transparent)]
-pub struct Thin<V, C>
+pub struct Thin<'erased_data, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
     inner:
-        RawThin<<V as ThinTrait<C>>::VTable, C, ThinTraitAutoTraitsMarker<V, C>, V::Lifetime, ()>,
+        RawThin<'erased_data, <V as ThinTrait<C>>::VTable, C, ThinTraitAutoTraitsMarker<V, C>, ()>,
 }
-impl<V, C> Thin<V, C>
+impl<'erased_data, V, C> Thin<'erased_data, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
     /// Borrow the common data and the type erased object at the same time.
-    pub fn split_common(this: &Self) -> (&Thin<V, C>, &C) {
+    pub fn split_common(this: &Self) -> (&Thin<'erased_data, V, C>, &C) {
         let common = &this.inner.common;
         (this, common)
     }
     /// Borrow the common data and the type erased object at the same time.
-    pub fn split_common_mut(this: &mut Self) -> (&mut ThinWithoutCommon<V, C>, &mut C) {
+    pub fn split_common_mut(
+        this: &mut Self,
+    ) -> (&mut ThinWithoutCommon<'erased_data, V, C>, &mut C) {
         // This is a bit tricky to make this safe since the `&mut C` type would
         // be pointing inside of the `&mut RawThin<VTable, C, Marker, ()>` type. Since
         // `&mut` references are unique this would be a bit strange to the compiler.
@@ -2381,34 +2444,34 @@ where
         // overlap.
 
         let this: *mut Self = this;
-        let thin: *mut ThinWithoutCommon<V, C> = this as _;
+        let thin: *mut ThinWithoutCommon<'erased_data, V, C> = this as _;
         let common: *mut C = RawThin::offset_to_common(
             this as *mut RawThin<
+                'erased_data,
                 <V as ThinTrait<C>>::VTable,
                 Split<C>,
                 ThinTraitAutoTraitsMarker<V, C>,
-                V::Lifetime,
                 (),
             >,
         );
         unsafe { (&mut *thin, &mut *common) }
     }
 }
-impl<V, C> Deref for Thin<V, C>
+impl<'erased_data, V, C> Deref for Thin<'erased_data, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
-    type Target = ThinWithoutCommon<V, C>;
+    type Target = ThinWithoutCommon<'erased_data, V, C>;
     fn deref(&self) -> &Self::Target {
         // Safety: `Thin` and `ThinWithoutCommon` are both `#[repr(transparent)]`
         // wrappers around the `RawThin` type. The only difference is that
         // `ThinWithoutCommon` has the common type wrapped in `Taken`. `Taken`
         // only weakens requirements so it should be safe to access the data in
         // that way.
-        unsafe { &*((self as *const Self) as *const ThinWithoutCommon<V, C>) }
+        unsafe { &*((self as *const Self) as *const ThinWithoutCommon<'erased_data, V, C>) }
     }
 }
-impl<V, C> DerefMut for Thin<V, C>
+impl<'erased_data, V, C> DerefMut for Thin<'erased_data, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
@@ -2418,10 +2481,10 @@ where
         // `ThinWithoutCommon` has the common type wrapped in `Taken`. `Taken`
         // only weakens requirements so it should be safe to access the data in
         // that way.
-        unsafe { &mut *((self as *mut Self) as *mut ThinWithoutCommon<V, C>) }
+        unsafe { &mut *((self as *mut Self) as *mut ThinWithoutCommon<'erased_data, V, C>) }
     }
 }
-impl<V, C> fmt::Debug for Thin<V, C>
+impl<V, C> fmt::Debug for Thin<'_, V, C>
 where
     V: ThinTrait<C> + ?Sized,
     C: fmt::Debug,
@@ -2439,19 +2502,19 @@ where
 /// of the allocation) or is being accessed through another reference and can not
 /// be accessed through this type.
 #[repr(transparent)]
-pub struct ThinWithoutCommon<V, C>
+pub struct ThinWithoutCommon<'erased_data, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
     inner: RawThin<
+        'erased_data,
         <V as ThinTrait<C>>::VTable,
         Split<C>,
         ThinTraitAutoTraitsMarker<V, C>,
-        V::Lifetime,
         (),
     >,
 }
-impl<V, C> ThinWithoutCommon<V, C>
+impl<'erased_data, V, C> ThinWithoutCommon<'erased_data, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
@@ -2467,10 +2530,10 @@ where
     pub fn as_raw(
         this: &Self,
     ) -> &RawThin<
+        'erased_data,
         <V as ThinTrait<C>>::VTable,
         Split<C>,
         ThinTraitAutoTraitsMarker<V, C>,
-        V::Lifetime,
         (),
     > {
         &this.inner
@@ -2479,16 +2542,16 @@ where
     pub fn as_raw_mut(
         this: &mut Self,
     ) -> &mut RawThin<
+        'erased_data,
         <V as ThinTrait<C>>::VTable,
         Split<C>,
         ThinTraitAutoTraitsMarker<V, C>,
-        V::Lifetime,
         (),
     > {
         &mut this.inner
     }
 }
-impl<V, C> fmt::Debug for ThinWithoutCommon<V, C>
+impl<V, C> fmt::Debug for ThinWithoutCommon<'_, V, C>
 where
     V: ThinTrait<C> + ?Sized,
 {
@@ -2511,7 +2574,7 @@ where
 ///
 /// `repr(C)` to ensure that D remains in the final position.
 #[repr(C)]
-pub struct RawThin<V, C, M, L, D>
+pub struct RawThin<'erased_data, V, C, M, D>
 where
     M: ?Sized,
 {
@@ -2527,12 +2590,12 @@ where
     _not_send_or_sync: PhantomData<M>,
     /// A marker type that ensures the lifetime of the type erased object is
     /// respected.
-    _lifetime: PhantomData<L>,
+    _lifetime: PhantomData<&'erased_data ()>,
     /// NOTE: Don't use directly. Use only through vtable. Erased type may have
     /// different alignment.
     _object: D,
 }
-impl<V, C, M, L> RawThin<V, C, M, L, ()>
+impl<'erased_data, V, C, M> RawThin<'erased_data, V, C, M, ()>
 where
     M: ?Sized,
 {
@@ -2542,8 +2605,8 @@ where
     ///
     /// The type specified via the `D2` type parameter must be the actual type of
     /// the type erased object that is stored inside this allocation.
-    pub unsafe fn as_unerase<D2>(&self) -> &RawThin<V, C, M, L, Split<D2>> {
-        &*((self as *const Self) as *const RawThin<V, C, M, L, Split<D2>>)
+    pub unsafe fn as_unerase<D2>(&self) -> &RawThin<'erased_data, V, C, M, Split<D2>> {
+        &*((self as *const Self) as *const RawThin<'erased_data, V, C, M, Split<D2>>)
     }
     /// Unerase the object.
     ///
@@ -2551,11 +2614,11 @@ where
     ///
     /// The type specified via the `D2` type parameter must be the actual type of
     /// the type erased object that is stored inside this allocation.
-    pub unsafe fn as_unerase_mut<D2>(&mut self) -> &mut RawThin<V, C, M, L, Split<D2>> {
-        &mut *((self as *mut Self) as *mut RawThin<V, C, M, L, Split<D2>>)
+    pub unsafe fn as_unerase_mut<D2>(&mut self) -> &mut RawThin<'erased_data, V, C, M, Split<D2>> {
+        &mut *((self as *mut Self) as *mut RawThin<'erased_data, V, C, M, Split<D2>>)
     }
 }
-impl<V, C, M, L, D> RawThin<V, Split<C>, M, L, D>
+impl<'erased_data, V, C, M, D> RawThin<'erased_data, V, Split<C>, M, D>
 where
     M: ?Sized,
 {
@@ -2567,7 +2630,7 @@ where
         after_vtable.wrapping_add(offset_to_common) as *mut C
     }
 }
-impl<V, C, M, L, D> RawThin<V, Split<C>, M, L, Split<D>>
+impl<'erased_data, V, C, M, D> RawThin<'erased_data, V, Split<C>, M, Split<D>>
 where
     M: ?Sized,
 {
@@ -2587,12 +2650,12 @@ where
         unsafe { &mut *Self::offset_to_object((self as *const Self) as *mut Self) }
     }
 }
-impl<V, C, M, L, D> RawThin<V, C, M, L, D>
+impl<'erased_data, V, C, M, D> RawThin<'erased_data, V, C, M, D>
 where
     M: ?Sized,
 {
     /// Remove the lifetime marker.
-    pub fn without_lifetime_marker(&self) -> &RawThin<V, C, M, (), D> {
+    pub fn without_lifetime_marker(&self) -> &RawThin<'static, V, C, M, D> {
         // Safety:
         // The marker type is stored inside a `PhantomData` type so it never
         // affects the layout of the `RawThin` type.
@@ -2600,10 +2663,10 @@ where
         // The returned type might live longer than the erased object. But the
         // self reference must live shorter than the erased data so it should
         // be fine.
-        unsafe { &*((self as *const Self) as *const RawThin<V, C, M, (), D>) }
+        unsafe { &*mem::transmute::<*const Self, *const RawThin<'static, V, C, M, D>>(self as _) }
     }
     /// Remove the lifetime marker.
-    pub fn without_lifetime_marker_mut(&mut self) -> &mut RawThin<V, C, M, (), D> {
+    pub fn without_lifetime_marker_mut(&mut self) -> &mut RawThin<'static, V, C, M, D> {
         // Safety:
         // The marker type is stored inside a `PhantomData` type so it never
         // affects the layout of the `RawThin` type.
@@ -2611,11 +2674,13 @@ where
         // The returned type might live longer than the erased object. But the
         // self reference must live shorter than the erased data so it should
         // be fine.
-        unsafe { &mut *((self as *mut Self) as *mut RawThin<V, C, M, (), D>) }
+        unsafe { &mut *mem::transmute::<*mut Self, *mut RawThin<'static, V, C, M, D>>(self as _) }
     }
     /// Weaken the auto traits marker type to the weakest it can be. The returned
     /// type won't implement any auto traits even if it would be safe to do so.
-    pub fn as_weaker_auto_traits_marker(&self) -> &RawThin<V, C, auto_traits::NoAutoTraits, L, D> {
+    pub fn as_weaker_auto_traits_marker(
+        &self,
+    ) -> &RawThin<'erased_data, V, C, auto_traits::NoAutoTraits, D> {
         // Safety:
         // The marker type is stored inside a `PhantomData` type so it never
         // affects the layout of the `RawThin` type.
@@ -2626,14 +2691,15 @@ where
         // This isn't an issue since `auto_traits::NoAutoTraits` ensures the type
         // doesn't implement any auto traits even if it would be safe to do so.
         unsafe {
-            &*((self as *const Self) as *const RawThin<V, C, auto_traits::NoAutoTraits, L, D>)
+            &*((self as *const Self)
+                as *const RawThin<'erased_data, V, C, auto_traits::NoAutoTraits, D>)
         }
     }
     /// Weaken the auto traits marker type to the weakest it can be. The returned
     /// type won't implement any auto traits even if it would be safe to do so.
     pub fn as_weaker_auto_traits_marker_mut(
         &mut self,
-    ) -> &mut RawThin<V, C, auto_traits::NoAutoTraits, L, D> {
+    ) -> &mut RawThin<'erased_data, V, C, auto_traits::NoAutoTraits, D> {
         // Safety:
         // The marker type is stored inside a `PhantomData` type so it never
         // affects the layout of the `RawThin` type.
@@ -2644,11 +2710,12 @@ where
         // This isn't an issue since `auto_traits::NoAutoTraits` ensures the type
         // doesn't implement any auto traits even if it would be safe to do so.
         unsafe {
-            &mut *((self as *mut Self) as *mut RawThin<V, C, auto_traits::NoAutoTraits, L, D>)
+            &mut *((self as *mut Self)
+                as *mut RawThin<'erased_data, V, C, auto_traits::NoAutoTraits, D>)
         }
     }
 }
-impl<V, C, M, L, D> fmt::Debug for RawThin<V, C, M, L, D>
+impl<'erased_data, V, C, M, D> fmt::Debug for RawThin<'erased_data, V, C, M, D>
 where
     M: ?Sized,
 {

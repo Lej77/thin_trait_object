@@ -8,6 +8,7 @@ fn compile_fail() {
     t.compile_fail("tests/compile_fail/*.rs");
 }
 
+#[allow(clippy::needless_lifetimes)]
 #[test]
 fn it_works() {
     use super::*;
@@ -15,38 +16,46 @@ fn it_works() {
     //trace_macros!(false);
     define_v_table!(
         /// Test
-        pub(super) trait TestMacroParsing<'a>: 'static + Send + Sync {
+        pub(super) trait TestMacroParsing<'a>: Send + Sync {
             type TestType: 'a + Clone + FnOnce(u32) -> i32;
 
             // fn ambiguous_with_type(self) -> Self::Test;
             fn with_type(self) -> <Self as TestMacroParsing<'a>>::TestType;
 
-            //fn test<T>(&self);
+            fn with_type_ref<'b>(&'b self) -> <Self as TestMacroParsing<'a>>::TestType;
+
+            fn many_lifetimes<'b, 'c>(&'b self, v: &'c ()) -> &'c u32;
+
+            fn borrowed_value<'b>(&'b self) -> &'b u32;
+            fn borrowed_trait_object<'b>(&'b self) -> &'b dyn ToString;
+            fn as_trait_object<'b>(&'b self) -> Box<dyn ToString + 'b>;
+
+            // fn test<T>(&self);
 
             unsafe fn an_unsafe_method(self);
 
-            fn method_ref(&self);
+            fn method_ref<'b>(&'b self);
 
-            fn method_ref_default(&self, arg1: u32, arg2: bool) -> bool {
+            fn method_ref_default<'b>(&'b self, arg1: u32, arg2: bool) -> bool {
                 arg1 == 0 && arg2
             }
 
             #[allow(clippy::needless_arbitrary_self_type)]
-            fn method_ref_adv(self: &Self);
+            fn method_ref_adv<'b>(self: &'b Self);
 
-            fn method_ref_adv_default(mut self: &Self) {
+            fn method_ref_adv_default<'b>(mut self: &'b Self) {
                 let mut c = move || {
                     self = self;
                 };
                 c();
             }
 
-            fn method_mut(&mut self);
+            fn method_mut<'b>(&'b mut self);
 
-            fn method_mut_default(&mut self) {}
+            fn method_mut_default<'b>(&'b mut self) {}
 
             #[allow(clippy::needless_arbitrary_self_type)]
-            fn method_mut_adv(self: &mut Self);
+            fn method_mut_adv<'b>(self: &'b mut Self);
 
             #[allow(unused_mut)]
             fn method_mut_adv_default(mut self: &mut Self) {}
@@ -57,13 +66,18 @@ fn it_works() {
             fn method_adv(self: Self);
         }
     );
+    define_v_table!(
+        trait ParseSuperLifetimes: 'static {
+            fn method<'a>(&'a self) -> &'a u32;
+        }
+    );
     //trace_macros!(false);
 
     define_v_table!(
         trait TestVTable {
             fn is_equal(&self, number: u32) -> bool;
             fn set_value(&mut self, number: u32);
-            fn clone(&self) -> ThinBox<dyn TestVTable, bool>;
+            fn clone<'a>(&'a self) -> ThinBox<'a, dyn TestVTable + 'static, bool>;
             fn consume(self) -> u32;
         }
     );
@@ -74,7 +88,7 @@ fn it_works() {
         fn set_value(&mut self, value: u32) {
             *self = value;
         }
-        fn clone(&self) -> ThinBox<dyn TestVTable, bool> {
+        fn clone(&self) -> ThinBox<'static, dyn TestVTable, bool> {
             ThinBox::new(*self, false)
         }
         fn consume(self) -> u32 {
@@ -83,14 +97,14 @@ fn it_works() {
     }
 
     // Test low level API (useful to narrow down miri issues):
-    RawThinBox::<<dyn TestVTable as ThinTrait<_>>::VTable, _, _, _, _>::new(2, 3_u128)
+    RawThinBox::<'_, <dyn TestVTable as ThinTrait<_>>::VTable, _, _, _>::new(2, 3_u128)
         .with_auto_trait_config::<()>()
         .erase()
         .free_common_data()
         .free_via_vtable();
 
     ThinBox::<dyn TestVTable, _>::into_raw(ThinBox::from_raw(
-        RawThinBox::<<dyn TestVTable as ThinTrait<_>>::VTable, _, _, _, _>::new(2, 3_u128)
+        RawThinBox::<'_, <dyn TestVTable as ThinTrait<_>>::VTable, _, _, _>::new(2, 3_u128)
             .with_auto_trait_config::<()>()
             .erase(),
     ))
@@ -101,11 +115,11 @@ fn it_works() {
 
     // High level API:
 
-    fn test_thin_box(mut erased: &mut ThinBox<dyn TestVTable, bool>) {
+    fn test_thin_box(mut erased: &mut ThinBox<'_, dyn TestVTable, bool>) {
         assert_eq!(mem::size_of_val(&erased), mem::size_of::<usize>());
 
         // Check if trait impl for ThinBox works:
-        test_callable::<ThinBox<_, _>>(&mut erased);
+        test_callable::<ThinBox<'_, _, _>>(&mut erased);
 
         assert!(erased.is_equal(2));
         assert!((&**erased).is_equal(2));
@@ -119,7 +133,7 @@ fn it_works() {
         assert!(v.is_equal(4));
         v.set_value(2);
     }
-    fn test_thin(thin: &mut Thin<dyn TestVTable, bool>) {
+    fn test_thin(thin: &mut Thin<'_, dyn TestVTable, bool>) {
         {
             let (erased, common) = Thin::split_common(thin);
             assert!(erased.is_equal(2));
@@ -127,7 +141,7 @@ fn it_works() {
         }
         {
             let (erased, common) = Thin::split_common_mut(thin);
-            test_callable::<ThinWithoutCommon<_, _>>(erased);
+            test_callable::<ThinWithoutCommon<'_, _, _>>(erased);
             *common = true;
         }
     }
@@ -137,8 +151,8 @@ fn it_works() {
 
     let (mut erased, common) = ThinBox::take_common(erased);
     assert!(common);
-    test_callable::<ThinBoxWithoutCommon<_, _>>(&mut erased);
-    test_callable::<ThinWithoutCommon<_, _>>(&mut *erased);
+    test_callable::<ThinBoxWithoutCommon<'_, _, _>>(&mut erased);
+    test_callable::<ThinWithoutCommon<'_, _, _>>(&mut *erased);
     assert!(erased.is_equal(2));
     assert!((&*erased).is_equal(2));
     assert_eq!(mem::size_of_val(&erased), mem::size_of::<usize>());
@@ -172,7 +186,7 @@ fn it_works() {
     impl<'a, T> WithLifetime<'a> for T where T: ToString {}
 
     let text = "".to_owned();
-    ThinBox::<dyn WithLifetime<'static>, _>::new(&text, ());
+    ThinBox::<'_, dyn WithLifetime<'static>, _>::new(&text, ());
 }
 
 #[test]
@@ -201,18 +215,14 @@ fn lifetime_variance() {
         long
     }
     fn shorten_thin<'a>(
-        long: ThinBox<dyn ToStringVTable + 'static, ()>,
+        long: ThinBox<'static, dyn ToStringVTable, ()>,
         _short: &'a (),
-    ) -> ThinBox<dyn ToStringVTable + 'a, ()> {
-        // Returning long itself would fail:
-        // return long;
-        // Casting explicitly works though:
-        // return ThinBox::from_raw(ThinBox::into_raw(long));
-        ThinBox::shorten_lifetime(long)
+    ) -> ThinBox<'a, dyn ToStringVTable, ()> {
+        long
     }
     fn lengthen_thin<'a>(
-        _short: ThinBox<dyn ToStringVTable + 'a, ()>,
-    ) -> ThinBox<dyn ToStringVTable + 'static, ()> {
+        _short: ThinBox<'a, dyn ToStringVTable, ()>,
+    ) -> ThinBox<'static, dyn ToStringVTable, ()> {
         // Returning long itself would fail:
         // return _short;
         // This also fails:
@@ -235,11 +245,11 @@ fn auto_traits() {
 
     assert!(impls::impls!(ThinTraitAutoTraitsMarker<dyn SomeVTable + Send, ()>: Send & !Sync));
 
-    assert!(impls::impls!(ThinBox<dyn SomeVTable, ()>: !Send));
-    assert!(impls::impls!(Thin<dyn SomeVTable, ()>: !Send));
+    assert!(impls::impls!(ThinBox<'_, dyn SomeVTable, ()>: !Send));
+    assert!(impls::impls!(Thin<'_, dyn SomeVTable, ()>: !Send));
 
-    assert!(impls::impls!(ThinBox<dyn SomeVTable + Send, ()>: Send & !Sync));
-    assert!(impls::impls!(ThinBox<dyn SomeVTable + Send, alloc::rc::Rc<()>>: !Send & !Sync));
+    assert!(impls::impls!(ThinBox<'_, dyn SomeVTable + Send, ()>: Send & !Sync));
+    assert!(impls::impls!(ThinBox<'_, dyn SomeVTable + Send, alloc::rc::Rc<()>>: !Send & !Sync));
 
     ThinBox::<dyn SomeVTable + Send, _>::new(2, ());
     // The next line shouldn't compile:
@@ -252,7 +262,7 @@ fn auto_traits_for_supertraits() {
     define_v_table!(
         trait SomeVTableSend: Send {}
     );
-    assert!(impls::impls!(ThinBox<dyn SomeVTableSend, ()>: Send));
-    assert!(impls::impls!(Thin<dyn SomeVTableSend, ()>: Send));
-    assert!(impls::impls!(Thin<dyn SomeVTableSend, alloc::rc::Rc<()>>: !Send & !Sync));
+    assert!(impls::impls!(ThinBox<'_, dyn SomeVTableSend, ()>: Send));
+    assert!(impls::impls!(Thin<'_, dyn SomeVTableSend, ()>: Send));
+    assert!(impls::impls!(Thin<'_, dyn SomeVTableSend, alloc::rc::Rc<()>>: !Send & !Sync));
 }

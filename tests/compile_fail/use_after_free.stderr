@@ -1,32 +1,32 @@
 error[E0597]: `text` does not live long enough
-  --> $DIR/use_after_free.rs:26:65
+  --> $DIR/use_after_free.rs:26:64
    |
-26 |         ThinBox::<dyn ToStringVTable + 'static, _>::new(Wrapper(&text), ());
-   |         --------------------------------------------------------^^^^^------
-   |         |                                                       |
-   |         |                                                       borrowed value does not live long enough
+26 |         ThinBox::<'static, dyn ToStringVTable, _>::new(Wrapper(&text), ());
+   |         -------------------------------------------------------^^^^^------
+   |         |                                                      |
+   |         |                                                      borrowed value does not live long enough
    |         argument requires that `text` is borrowed for `'static`
 27 |     };
    |     - `text` dropped here while still borrowed
 
 error[E0597]: `text` does not live long enough
-  --> $DIR/use_after_free.rs:32:55
+  --> $DIR/use_after_free.rs:32:59
    |
 29 |     let erased = {
    |         ------ borrow later stored here
 ...
-32 |         ThinBox::<dyn ToStringVTable, _>::new(Wrapper(&text), ())
-   |                                                       ^^^^^ borrowed value does not live long enough
+32 |         ThinBox::<'_, dyn ToStringVTable, _>::new(Wrapper(&text), ())
+   |                                                           ^^^^^ borrowed value does not live long enough
 33 |     };
    |     - `text` dropped here while still borrowed
 
 error[E0597]: `text` does not live long enough
-  --> $DIR/use_after_free.rs:39:68
+  --> $DIR/use_after_free.rs:39:72
    |
 36 |     let erased = {
    |         ------ borrow later stored here
 ...
-39 |         ThinBoxWithoutCommon::<dyn ToStringVTable, _>::new(Wrapper(&text))
-   |                                                                    ^^^^^ borrowed value does not live long enough
+39 |         ThinBoxWithoutCommon::<'_, dyn ToStringVTable, _>::new(Wrapper(&text))
+   |                                                                        ^^^^^ borrowed value does not live long enough
 40 |     };
    |     - `text` dropped here while still borrowed

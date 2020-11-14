@@ -21,22 +21,22 @@ fn main() {
     {
         let text = "test".to_owned();
         // Works:
-        ThinBox::<dyn ToStringVTable, _>::new(Wrapper(&text), ());
+        ThinBox::<'_, dyn ToStringVTable, _>::new(Wrapper(&text), ());
         // Fails:
-        ThinBox::<dyn ToStringVTable + 'static, _>::new(Wrapper(&text), ());
+        ThinBox::<'static, dyn ToStringVTable, _>::new(Wrapper(&text), ());
     };
 
     let erased = {
         let text = "test".to_owned();
         // Fails:
-        ThinBox::<dyn ToStringVTable, _>::new(Wrapper(&text), ())
+        ThinBox::<'_, dyn ToStringVTable, _>::new(Wrapper(&text), ())
     };
     assert_eq!(erased.dyn_to_string(), "test");
 
     let erased = {
         let text = "test".to_owned();
         // Fails:
-        ThinBoxWithoutCommon::<dyn ToStringVTable, _>::new(Wrapper(&text))
+        ThinBoxWithoutCommon::<'_, dyn ToStringVTable, _>::new(Wrapper(&text))
     };
     assert_eq!(erased.dyn_to_string(), "test");
 }

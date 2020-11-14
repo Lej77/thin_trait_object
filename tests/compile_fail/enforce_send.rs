@@ -7,5 +7,5 @@ define_v_table!(
 impl<T> SomeVTable for Rc<T> {}
 
 fn main() {
-    ThinBox::<dyn SomeVTable + Send, _>::new(Rc::new(2), ());
+    ThinBox::<'_, dyn SomeVTable + Send, _>::new(Rc::new(2), ());
 }
